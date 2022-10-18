@@ -28,11 +28,7 @@ class ApiClient:
         self.session = session
         self.baseurl = baseurl
 
-        if headers:
-            self.headers = headers
-        else:
-            self.headers = self.default_headers.copy()
-
+        self.headers = headers or self.default_headers.copy()
         if aditional_headers:
             self.headers.update(aditional_headers)
 
@@ -133,7 +129,7 @@ class Garmin:
             self.garmin_connect_modern_url = "connect.garmin.cn/modern"
             self.garmin_connect_css_url = "https://static.garmincdn.cn/cn.garmin.connect/ui/css/gauth-custom-v1.2-min.css"
 
-        self.garmin_connect_login_url = self.garmin_connect_base_url + "/en-US/signin"
+        self.garmin_connect_login_url = f"{self.garmin_connect_base_url}/en-US/signin"
         self.garmin_connect_sso_login = "signin"
 
         self.garmin_connect_devices_url = (
@@ -221,9 +217,8 @@ class Garmin:
     def __get_json(page_html, key):
         """Return json from text."""
 
-        found = re.search(key + r" = (\{.*\});", page_html, re.M)
-        if found:
-            json_text = found.group(1).replace('\\"', '"')
+        if found := re.search(key + r" = (\{.*\});", page_html, re.M):
+            json_text = found[1].replace('\\"', '"')
             return json.loads(json_text)
 
         return None
@@ -277,9 +272,8 @@ class Garmin:
 
         if self.display_name == session_display_name:
             return True
-        else:
-            logger.debug("Session not valid for user %s", self.display_name)
-            return self.authenticate()
+        logger.debug("Session not valid for user %s", self.display_name)
+        return self.authenticate()
 
     def authenticate(self):
         """Login to Garmin Connect."""
@@ -334,7 +328,7 @@ class Garmin:
             logger.error("_csrf not found  (%d)", response.status_code)
             return False
 
-        csrf = found.group(1)
+        csrf = found[1]
         referer = response.url
         logger.debug("_csrf found: %s", csrf)
         logger.debug("Referer: %s", referer)
@@ -358,7 +352,7 @@ class Garmin:
         if not found:
             logger.error("Login ticket not found (%d).", response.status_code)
             return False
-        params = {"ticket": found.group(1)}
+        params = {"ticket": found[1]}
 
         response = self.modern_rest_client.get("", params=params)
 
@@ -406,9 +400,7 @@ class Garmin:
         """Return user activity summary for 'cdate' format 'YYYY-mm-dd'."""
 
         url = f"{self.garmin_connect_daily_summary_url}/{self.display_name}"
-        params = {
-            "calendarDate": str(cdate),
-        }
+        params = {"calendarDate": cdate}
         logger.debug("Requesting user summary")
 
         response = self.modern_rest_client.get(url, params=params).json()
@@ -454,7 +446,7 @@ class Garmin:
         if enddate is None:
             enddate = startdate
         url = self.garmin_connect_weight_url
-        params = {"startDate": str(startdate), "endDate": str(enddate)}
+        params = {"startDate": startdate, "endDate": str(enddate)}
         logger.debug("Requesting body composition")
 
         return self.modern_rest_client.get(url, params=params).json()
@@ -547,7 +539,7 @@ class Garmin:
         """Return sleep data for current user."""
 
         url = f"{self.garmin_connect_daily_sleep_url}/{self.display_name}"
-        params = {"date": str(cdate), "nonSleepBufferMinutes": 60}
+        params = {"date": cdate, "nonSleepBufferMinutes": 60}
 
         logger.debug("Requesting sleep data")
 
@@ -564,7 +556,7 @@ class Garmin:
     def get_rhr_day(self, cdate: str) -> Dict[str, Any]:
         """Return resting heartrate data for current user."""
 
-        params = {"fromDate": str(cdate), "untilDate": str(cdate), "metricId": 60}
+        params = {"fromDate": cdate, "untilDate": cdate, "metricId": 60}
         url = f"{self.garmin_connect_rhr}/{self.display_name}"
         logger.debug("Requesting resting heartrate data")
 
@@ -618,11 +610,7 @@ class Garmin:
     def get_last_activity(self):
         """Return last activity."""
 
-        activities = self.get_activities(0, 1)
-        if activities:
-            return activities[-1]
-
-        return None
+        return activities[-1] if (activities := self.get_activities(0, 1)) else None
 
     def get_activities_by_date(self, startdate, enddate, activitytype=None):
         """
@@ -654,8 +642,7 @@ class Garmin:
         while True:
             params["start"] = str(start)
             logger.debug(f"Requesting activities {start} to {start+limit}")
-            act = self.modern_rest_client.get(url, params=params).json()
-            if act:
+            if act := self.modern_rest_client.get(url, params=params).json():
                 activities.extend(act)
                 start = start + limit
             else:
@@ -757,9 +744,7 @@ class Garmin:
         """Return gears used for activity id."""
 
         activity_id = str(activity_id)
-        params = {
-            "activityId": str(activity_id),
-        }
+        params = {"activityId": activity_id}
         url = self.garmin_connect_gear
         logger.debug("Requesting gear for activity_id %s", activity_id)
 
